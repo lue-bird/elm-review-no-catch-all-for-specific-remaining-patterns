@@ -1,7 +1,9 @@
 module NoCatchAllForSpecificRemainingPatternsTest exposing (all)
 
 import NoCatchAllForSpecificRemainingPatterns
+import Review.Project
 import Review.Test
+import Review.Test.Dependencies
 import Test
 
 
@@ -163,6 +165,78 @@ a =
         
         Nothing ->
             0
+"""
+                        ]
+        , Test.test "report _ case with imported choice type fully qualified" <|
+            \() ->
+                """module A exposing (..)
+a =
+    case Maybe.Nothing of
+        Maybe.Just n ->
+            n
+        
+        _ ->
+            0
+"""
+                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
+                    |> Review.Test.expectErrors
+                        [ Review.Test.error
+                            { message = "catch-all can be replaced by more specific patterns"
+                            , details =
+                                [ "The last case in this case-of covers a finite number of specific patterns."
+                                , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
+                                ]
+                            , under = "_"
+                            }
+                            |> Review.Test.whenFixed
+                                """module A exposing (..)
+a =
+    case Maybe.Nothing of
+        Maybe.Just n ->
+            n
+        
+        Maybe.Nothing ->
+            0
+"""
+                        ]
+        , Test.test "report _ case with dependency imported choice type fully qualified" <|
+            \() ->
+                """module A exposing (..)
+import Parser.Advanced
+continueLoop step =
+    case step of
+        Parser.Advanced.Done _ ->
+            Debug.todo ""
+
+        _ ->
+            Debug.todo ""
+"""
+                    |> Review.Test.runWithProjectData
+                        (Review.Project.new
+                            |> Review.Project.addDependency Review.Test.Dependencies.elmParser
+                        )
+                        NoCatchAllForSpecificRemainingPatterns.rule
+                    |> Review.Test.expectErrors
+                        [ Review.Test.error
+                            { message = "catch-all can be replaced by more specific patterns"
+                            , details =
+                                [ "The last case in this case-of covers a finite number of specific patterns."
+                                , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
+                                ]
+                            , under = "_"
+                            }
+                            |> Review.Test.atExactly
+                                { start = { row = 8, column = 9 }, end = { row = 8, column = 10 } }
+                            |> Review.Test.whenFixed
+                                """module A exposing (..)
+import Parser.Advanced
+continueLoop step =
+    case step of
+        Parser.Advanced.Done _ ->
+            Debug.todo ""
+
+        Parser.Advanced.Loop _ ->
+            Debug.todo ""
 """
                         ]
         , Test.test "report _ case with module declared choice type" <|

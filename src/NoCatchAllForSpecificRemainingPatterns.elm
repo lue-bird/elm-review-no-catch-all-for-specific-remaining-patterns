@@ -1028,8 +1028,13 @@ fastDictAnyJustMap : (value -> Maybe value) -> FastDict.Dict key value -> Maybe 
 fastDictAnyJustMap valueToMaybeFound fastDict =
     fastDict
         |> FastDict.foldl
-            (\_ value _ ->
-                value |> valueToMaybeFound
+            (\_ value soFar ->
+                case soFar of
+                    Just found ->
+                        Just found
+
+                    Nothing ->
+                        value |> valueToMaybeFound
             )
             Nothing
 
