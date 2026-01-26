@@ -328,17 +328,7 @@ visitExpression config expression context =
                             listFilledSplitOffLast ( case1, case2Up )
                     in
                     if lastCasePattern |> patternCatchesAll context then
-                        let
-                            previousCasesMaybeCatchFiniteNarrow : Maybe CatchFiniteNarrow
-                            previousCasesMaybeCatchFiniteNarrow =
-                                (case0 :: case1UpBeforeLast)
-                                    |> listMapAndAllJust
-                                        (\( casePattern, _ ) ->
-                                            casePattern |> patternToFiniteNarrow context
-                                        )
-                                    |> Maybe.andThen patternFiniteNarrowsCombine
-                        in
-                        case previousCasesMaybeCatchFiniteNarrow of
+                        case casesCombinePatternFiniteNarrowCatch context case0 case1UpBeforeLast of
                             Nothing ->
                                 []
 
@@ -961,76 +951,87 @@ type CatchFiniteNarrow
         }
 
 
-patternFiniteNarrowsCombine : List PatternFiniteNarrow -> Maybe CatchFiniteNarrow
-patternFiniteNarrowsCombine patternFiniteNarrows =
-    case patternFiniteNarrows of
-        [] ->
-            Nothing
+casesCombinePatternFiniteNarrowCatch :
+    ModuleContext
+    -> Elm.Syntax.Expression.Case
+    -> List Elm.Syntax.Expression.Case
+    -> Maybe CatchFiniteNarrow
+casesCombinePatternFiniteNarrowCatch context ( case0PatternNode, _ ) patternFiniteNarrow1Up =
+    patternFiniteNarrow1Up
+        |> List.foldl
+            (\( patternNode, _ ) soFar ->
+                case soFar of
+                    Nothing ->
+                        Nothing
 
-        patternFiniteNarrow0 :: patternFiniteNarrow1Up ->
-            patternFiniteNarrow1Up
-                |> List.foldl
-                    (\patternFiniteNarrow soFar ->
-                        case soFar of
+                    Just soFarCatchFiniteNarrow ->
+                        case patternNode |> patternToFiniteNarrow context of
                             Nothing ->
                                 Nothing
 
-                            Just soFarCatchFiniteNarrow ->
-                                catchFiniteNarrowMerge soFarCatchFiniteNarrow
-                                    (patternFiniteNarrow |> patternFiniteNarrowCatch)
-                    )
-                    (Just (patternFiniteNarrow0 |> patternFiniteNarrowCatch))
+                            Just patternFiniteNarrow ->
+                                soFarCatchFiniteNarrow
+                                    |> catchFiniteNarrowMergeInPatternFiniteNarrow
+                                        patternFiniteNarrow
+            )
+            (case0PatternNode
+                |> patternToFiniteNarrow context
+                |> Maybe.map patternFiniteNarrowCatch
+            )
 
 
-catchFiniteNarrowMerge : CatchFiniteNarrow -> CatchFiniteNarrow -> Maybe CatchFiniteNarrow
-catchFiniteNarrowMerge a b =
-    case a of
+catchFiniteNarrowMergeInPatternFiniteNarrow : PatternFiniteNarrow -> CatchFiniteNarrow -> Maybe CatchFiniteNarrow
+catchFiniteNarrowMergeInPatternFiniteNarrow patternFiniteNarrowToMergeWith b =
+    case b of
         CatchChoiceType aCatchChoiceType ->
-            case b of
-                CatchList _ ->
+            case patternFiniteNarrowToMergeWith of
+                ListPattern _ ->
                     Nothing
 
-                CatchChoiceType bCatchChoiceType ->
-                    if aCatchChoiceType.moduleOrigin == bCatchChoiceType.moduleOrigin then
+                VariantPattern variantPatternToMergeWith ->
+                    if aCatchChoiceType.moduleOrigin == variantPatternToMergeWith.moduleOrigin then
                         Just
                             (CatchChoiceType
                                 { qualification = aCatchChoiceType.qualification
                                 , moduleOrigin = aCatchChoiceType.moduleOrigin
                                 , variantNames =
-                                    FastSet.union
-                                        aCatchChoiceType.variantNames
-                                        bCatchChoiceType.variantNames
+                                    aCatchChoiceType.variantNames
+                                        |> FastSet.insert
+                                            variantPatternToMergeWith.unqualifiedName
                                 }
                             )
 
                     else
                         Nothing
 
-        CatchList aCatchList ->
-            case b of
-                CatchChoiceType _ ->
+        CatchList soFarCatchList ->
+            case patternFiniteNarrowToMergeWith of
+                VariantPattern _ ->
                     Nothing
 
-                CatchList bCatchList ->
+                ListPattern listPatternToMerge ->
                     Just
                         (CatchList
-                            { specificElementCounts =
-                                FastSet.union
-                                    aCatchList.specificElementCounts
-                                    bCatchList.specificElementCounts
-                            , allAfterElementCount =
-                                case bCatchList.allAfterElementCount of
-                                    Nothing ->
-                                        aCatchList.allAfterElementCount
+                            (if listPatternToMerge.hasTail then
+                                { specificElementCounts =
+                                    soFarCatchList.specificElementCounts
+                                , allAfterElementCount =
+                                    case soFarCatchList.allAfterElementCount of
+                                        Nothing ->
+                                            Just listPatternToMerge.elementCount
 
-                                    Just bAllAfterElementCount ->
-                                        case aCatchList.allAfterElementCount of
-                                            Nothing ->
-                                                Just bAllAfterElementCount
+                                        Just aAllAfterElementCount ->
+                                            Just (Basics.min aAllAfterElementCount listPatternToMerge.elementCount)
+                                }
 
-                                            Just aAllAfterElementCount ->
-                                                Just (Basics.min aAllAfterElementCount bAllAfterElementCount)
-                            }
+                             else
+                                { specificElementCounts =
+                                    soFarCatchList.specificElementCounts
+                                        |> FastSet.insert listPatternToMerge.elementCount
+                                , allAfterElementCount =
+                                    soFarCatchList.allAfterElementCount
+                                }
+                            )
                         )
 
 
@@ -1084,26 +1085,6 @@ listMapAndFirstJust elementToMaybeFound list =
 
                 Nothing ->
                     listMapAndFirstJust elementToMaybeFound tail
-
-
-listMapAndAllJust : (a -> Maybe b) -> List a -> Maybe (List b)
-listMapAndAllJust elementToMaybe list =
-    case list of
-        [] ->
-            Just []
-
-        head :: tail ->
-            case elementToMaybe head of
-                Nothing ->
-                    Nothing
-
-                Just headValue ->
-                    case listMapAndAllJust elementToMaybe tail of
-                        Nothing ->
-                            Nothing
-
-                        Just tailValues ->
-                            Just (headValue :: tailValues)
 
 
 listFilledSplitOffLast : ( a, List a ) -> ( List a, a )
