@@ -1,6 +1,7 @@
 node_modules/
 elm-stuff/
 zombie
+docs.json
 
 # Editors
 .idea/
