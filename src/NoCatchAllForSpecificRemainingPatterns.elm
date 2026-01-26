@@ -121,7 +121,11 @@ type alias ProjectContext =
     { choiceTypes :
         FastDict.Dict
             Elm.Syntax.ModuleName.ModuleName
-            (FastDict.Dict String (List { name : String, parameterCount : Int }))
+            (List
+                { name : String
+                , variants : List { name : String, parameterCount : Int }
+                }
+            )
     }
 
 
@@ -129,8 +133,16 @@ type alias ModuleContext =
     { importedChoiceTypes :
         FastDict.Dict
             Elm.Syntax.ModuleName.ModuleName
-            (FastDict.Dict String (List { name : String, parameterCount : Int }))
-    , moduleDeclaredChoiceTypes : FastDict.Dict String (List { name : String, parameterCount : Int })
+            (List
+                { name : String
+                , variants : List { name : String, parameterCount : Int }
+                }
+            )
+    , moduleDeclaredChoiceTypes :
+        List
+            { name : String
+            , variants : List { name : String, parameterCount : Int }
+            }
     , moduleOriginLookup : Review.ModuleNameLookupTable.ModuleNameLookupTable
     , sourceInRange : Elm.Syntax.Range.Range -> String
     }
@@ -153,7 +165,7 @@ projectToModuleContext =
     Review.Rule.initContextCreator
         (\moduleOriginLookup sourceInRange projectContext ->
             { importedChoiceTypes = projectContext.choiceTypes
-            , moduleDeclaredChoiceTypes = FastDict.empty
+            , moduleDeclaredChoiceTypes = []
             , moduleOriginLookup = moduleOriginLookup
             , sourceInRange = sourceInRange
             }
@@ -197,44 +209,57 @@ dependencyInterfaceChoiceTypes :
     ->
         FastDict.Dict
             Elm.Syntax.ModuleName.ModuleName
-            (FastDict.Dict String (List { name : String, parameterCount : Int }))
+            (List
+                { name : String
+                , variants : List { name : String, parameterCount : Int }
+                }
+            )
 dependencyInterfaceChoiceTypes dependency =
     dependency
         |> Review.Project.Dependency.modules
         |> List.foldl
             (\moduleInterface soFarInDependency ->
-                FastDict.insert (moduleInterface.name |> String.split ".")
-                    (moduleInterface |> moduleInterfaceChoiceTypes)
-                    soFarInDependency
+                case moduleInterface |> moduleInterfaceChoiceTypes of
+                    [] ->
+                        soFarInDependency
+
+                    (_ :: _) as choiceTypes ->
+                        FastDict.insert (moduleInterface.name |> String.split ".")
+                            choiceTypes
+                            soFarInDependency
             )
             FastDict.empty
 
 
 moduleInterfaceChoiceTypes :
     Elm.Docs.Module
-    -> FastDict.Dict String (List { name : String, parameterCount : Int })
+    ->
+        List
+            { name : String
+            , variants : List { name : String, parameterCount : Int }
+            }
 moduleInterfaceChoiceTypes moduleInterface =
     moduleInterface.unions
-        |> List.foldl
-            (\choiceTypeInterface soFar ->
+        |> List.filterMap
+            (\choiceTypeInterface ->
                 case choiceTypeInterface.tags of
                     [] ->
-                        soFar
+                        -- opaque type
+                        Nothing
 
                     variant0 :: variant1Up ->
-                        soFar
-                            |> FastDict.insert
-                                choiceTypeInterface.name
-                                ((variant0 :: variant1Up)
+                        Just
+                            { name = choiceTypeInterface.name
+                            , variants =
+                                (variant0 :: variant1Up)
                                     |> List.map
                                         (\( variantName, variantParameters ) ->
                                             { name = variantName
                                             , parameterCount = variantParameters |> List.length
                                             }
                                         )
-                                )
+                            }
             )
-            FastDict.empty
 
 
 visitDeclarations :
@@ -247,14 +272,14 @@ visitDeclarations declarations context =
     , importedChoiceTypes = context.importedChoiceTypes
     , moduleDeclaredChoiceTypes =
         declarations
-            |> List.foldl
-                (\(Elm.Syntax.Node.Node _ declaration) soFar ->
+            |> List.filterMap
+                (\(Elm.Syntax.Node.Node _ declaration) ->
                     case declaration of
                         Elm.Syntax.Declaration.CustomTypeDeclaration choiceTypeDeclaration ->
-                            soFar
-                                |> FastDict.insert
-                                    (choiceTypeDeclaration.name |> Elm.Syntax.Node.value)
-                                    (choiceTypeDeclaration.constructors
+                            Just
+                                { name = choiceTypeDeclaration.name |> Elm.Syntax.Node.value
+                                , variants =
+                                    choiceTypeDeclaration.constructors
                                         |> List.map
                                             (\(Elm.Syntax.Node.Node _ variantDeclaration) ->
                                                 { name = variantDeclaration.name |> Elm.Syntax.Node.value
@@ -262,24 +287,23 @@ visitDeclarations declarations context =
                                                     variantDeclaration.arguments |> List.length
                                                 }
                                             )
-                                    )
+                                }
 
                         Elm.Syntax.Declaration.FunctionDeclaration _ ->
-                            soFar
+                            Nothing
 
                         Elm.Syntax.Declaration.AliasDeclaration _ ->
-                            soFar
+                            Nothing
 
                         Elm.Syntax.Declaration.PortDeclaration _ ->
-                            soFar
+                            Nothing
 
                         Elm.Syntax.Declaration.InfixDeclaration _ ->
-                            soFar
+                            Nothing
 
                         Elm.Syntax.Declaration.Destructuring _ _ ->
-                            soFar
+                            Nothing
                 )
-                FastDict.empty
     }
 
 
@@ -308,11 +332,10 @@ visitExpression config expression context =
                             previousCasesMaybeCatchFiniteNarrow : Maybe CatchFiniteNarrow
                             previousCasesMaybeCatchFiniteNarrow =
                                 (case0 :: case1UpBeforeLast)
-                                    |> List.map
+                                    |> listMapAndAllJust
                                         (\( casePattern, _ ) ->
                                             casePattern |> patternToFiniteNarrow context
                                         )
-                                    |> listAllJust
                                     |> Maybe.andThen patternFiniteNarrowsCombine
                         in
                         case previousCasesMaybeCatchFiniteNarrow of
@@ -457,26 +480,26 @@ badCaseOfToError config context caseOf =
                                     case catchChoiceType.moduleOrigin of
                                         [] ->
                                             context.moduleDeclaredChoiceTypes
-                                                |> fastDictAnyJustMap
-                                                    (\variants ->
-                                                        if variants |> List.any (\variant -> variant.name == someCaughtUnqualifiedVariantName) then
-                                                            Just variants
+                                                |> listMapAndFirstJust
+                                                    (\choiceTypeDeclaration ->
+                                                        if choiceTypeDeclaration.variants |> List.any (\variant -> variant.name == someCaughtUnqualifiedVariantName) then
+                                                            Just choiceTypeDeclaration.variants
 
                                                         else
                                                             Nothing
                                                     )
 
-                                        moduleNamePart0 :: moduleNamePart1Up ->
-                                            case context.importedChoiceTypes |> FastDict.get (moduleNamePart0 :: moduleNamePart1Up) of
+                                        (_ :: _) as importedModuleOrigin ->
+                                            case context.importedChoiceTypes |> FastDict.get importedModuleOrigin of
                                                 Nothing ->
                                                     Nothing
 
                                                 Just choiceTypesFromReferencedModule ->
                                                     choiceTypesFromReferencedModule
-                                                        |> fastDictAnyJustMap
-                                                            (\variants ->
-                                                                if variants |> List.any (\variant -> variant.name == someCaughtUnqualifiedVariantName) then
-                                                                    Just variants
+                                                        |> listMapAndFirstJust
+                                                            (\choiceTypeDeclaration ->
+                                                                if choiceTypeDeclaration.variants |> List.any (\variant -> variant.name == someCaughtUnqualifiedVariantName) then
+                                                                    Just choiceTypeDeclaration.variants
 
                                                                 else
                                                                     Nothing
@@ -491,7 +514,7 @@ badCaseOfToError config context caseOf =
 
                                 else
                                     Just
-                                        (referenceToString { qualification = catchChoiceType.qualification, unqualifiedName = variantToCatch.name }
+                                        (referenceToString { qualification = catchChoiceType.qualification, name = variantToCatch.name }
                                             ++ String.repeat variantToCatch.parameterCount " _"
                                         )
                             )
@@ -593,6 +616,9 @@ patternCatchesAll context (Elm.Syntax.Node.Node patternRange pattern) =
         Elm.Syntax.Pattern.UnitPattern ->
             True
 
+        Elm.Syntax.Pattern.RecordPattern _ ->
+            False
+
         Elm.Syntax.Pattern.CharPattern _ ->
             False
 
@@ -608,17 +634,20 @@ patternCatchesAll context (Elm.Syntax.Node.Node patternRange pattern) =
         Elm.Syntax.Pattern.FloatPattern _ ->
             False
 
-        Elm.Syntax.Pattern.TuplePattern parts ->
-            parts |> List.all (\part -> part |> patternCatchesAll context)
-
-        Elm.Syntax.Pattern.RecordPattern _ ->
-            False
-
         Elm.Syntax.Pattern.UnConsPattern _ _ ->
             False
 
         Elm.Syntax.Pattern.ListPattern _ ->
             False
+
+        Elm.Syntax.Pattern.AsPattern aliasedPattern _ ->
+            patternCatchesAll context aliasedPattern
+
+        Elm.Syntax.Pattern.ParenthesizedPattern inParens ->
+            patternCatchesAll context inParens
+
+        Elm.Syntax.Pattern.TuplePattern parts ->
+            parts |> List.all (\part -> part |> patternCatchesAll context)
 
         Elm.Syntax.Pattern.NamedPattern variantName attachmentPatterns ->
             (attachmentPatterns |> List.all (\attachmentPattern -> attachmentPattern |> patternCatchesAll context))
@@ -629,19 +658,19 @@ patternCatchesAll context (Elm.Syntax.Node.Node patternRange pattern) =
 
                         Just [] ->
                             context.moduleDeclaredChoiceTypes
-                                |> FastDict.foldl
-                                    (\_ variants soFar ->
-                                        case variants of
+                                |> List.any
+                                    (\choiceTypeDeclaration ->
+                                        case choiceTypeDeclaration.variants of
                                             [ onlyVariant ] ->
-                                                soFar || (onlyVariant.name == variantName.name)
-
-                                            [] ->
-                                                soFar
+                                                onlyVariant.name == variantName.name
 
                                             _ :: _ :: _ ->
-                                                soFar
+                                                False
+
+                                            -- invalid syntax
+                                            [] ->
+                                                False
                                     )
-                                    False
 
                         Just (moduleNamePart0 :: moduleNamePart1Up) ->
                             case context.importedChoiceTypes |> FastDict.get (moduleNamePart0 :: moduleNamePart1Up) of
@@ -650,26 +679,20 @@ patternCatchesAll context (Elm.Syntax.Node.Node patternRange pattern) =
 
                                 Just variantOriginModuleDeclaredChoiceTypes ->
                                     variantOriginModuleDeclaredChoiceTypes
-                                        |> FastDict.foldl
-                                            (\_ variants soFar ->
-                                                case variants of
+                                        |> List.any
+                                            (\choiceTypeDeclaration ->
+                                                case choiceTypeDeclaration.variants of
                                                     [ onlyVariant ] ->
-                                                        soFar || (onlyVariant.name == variantName.name)
-
-                                                    [] ->
-                                                        soFar
+                                                        onlyVariant.name == variantName.name
 
                                                     _ :: _ :: _ ->
-                                                        soFar
+                                                        False
+
+                                                    -- invalid syntax
+                                                    [] ->
+                                                        False
                                             )
-                                            False
                    )
-
-        Elm.Syntax.Pattern.AsPattern aliasedPattern _ ->
-            aliasedPattern |> patternCatchesAll context
-
-        Elm.Syntax.Pattern.ParenthesizedPattern inParens ->
-            inParens |> patternCatchesAll context
 
 
 patternContainsVariables : Elm.Syntax.Pattern.Pattern -> Bool
@@ -1017,16 +1040,16 @@ patternFiniteNarrowCatch patternFiniteNarrow =
                     }
 
 
-referenceToString : { qualification : Elm.Syntax.ModuleName.ModuleName, unqualifiedName : String } -> String
+referenceToString : { qualification : Elm.Syntax.ModuleName.ModuleName, name : String } -> String
 referenceToString reference =
     case reference.qualification of
         [] ->
-            reference.unqualifiedName
+            reference.name
 
         moduleNamePart0 :: moduleNamePart1 ->
             ((moduleNamePart0 :: moduleNamePart1) |> String.join ".")
                 ++ "."
-                ++ reference.unqualifiedName
+                ++ reference.name
 
 
 stringIndentBy : Int -> String -> String
@@ -1048,34 +1071,34 @@ stringIndentBy additionalIndentation string =
                    )
 
 
-fastDictAnyJustMap : (value -> Maybe value) -> FastDict.Dict key value -> Maybe value
-fastDictAnyJustMap valueToMaybeFound fastDict =
-    fastDict
-        |> FastDict.foldl
-            (\_ value soFar ->
-                case soFar of
-                    Just found ->
-                        Just found
-
-                    Nothing ->
-                        value |> valueToMaybeFound
-            )
+listMapAndFirstJust : (a -> Maybe b) -> List a -> Maybe b
+listMapAndFirstJust elementToMaybeFound list =
+    case list of
+        [] ->
             Nothing
 
+        head :: tail ->
+            case elementToMaybeFound head of
+                (Just _) as justFound ->
+                    justFound
 
-listAllJust : List (Maybe a) -> Maybe (List a)
-listAllJust maybes =
-    case maybes of
+                Nothing ->
+                    listMapAndFirstJust elementToMaybeFound tail
+
+
+listMapAndAllJust : (a -> Maybe b) -> List a -> Maybe (List b)
+listMapAndAllJust elementToMaybe list =
+    case list of
         [] ->
             Just []
 
         head :: tail ->
-            case head of
+            case elementToMaybe head of
                 Nothing ->
                     Nothing
 
                 Just headValue ->
-                    case listAllJust tail of
+                    case listMapAndAllJust elementToMaybe tail of
                         Nothing ->
                             Nothing
 
