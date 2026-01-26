@@ -1,4 +1,4 @@
-## (unreleased) 2.0.0
+## 2.0.0
   - add configuration `onlyReportCatchAllIfEquivalentToSinglePattern`
     to `NoCatchAllForSpecificRemainingPatterns.rule`.
     Thanks for [suggesting it, @jfmengels](https://github.com/lue-bird/elm-review-no-catch-all-for-specific-remaining-patterns/issues/4)
