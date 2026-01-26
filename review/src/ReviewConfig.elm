@@ -48,7 +48,6 @@ import NoUnused.Variables
 import NoUnusedPorts
 import OnlyAllSingleUseTypeVarsEndWith_
 import Review.Action
-import Review.Documentation.CodeSnippet
 import Review.ImportSimple
 import Review.OpaqueType
 import Review.Pattern.Record
@@ -61,13 +60,12 @@ import ReviewPipelineStyles.Predicates
 import Simplify
 import UseCamelCase
 import VariablesBetweenCaseOf.AccessInCases
+import NoCatchAllForSpecificRemainingPatterns
 
 
 config : List Review.Rule.Rule
 config =
     [ -- ## documentation
-      -- enable on a per-project basis
-      --, Review.Documentation.CodeSnippet.check
       Docs.ReviewLinksAndSections.rule
     , Docs.ReviewAtDocs.rule
     , Docs.NoMissing.rule
@@ -179,6 +177,7 @@ config =
     , Review.PhantomType.forbid
     , Review.OpaqueType.forbid
     , NoCatchAllForSpecificRemainingPatterns.rule
+        { onlyReportCatchAllIfEquivalentToSinglePattern = False }
     ]
         |> List.map (Review.Rule.ignoreErrorsForDirectories [ "VerifyExamples/" ])
 
