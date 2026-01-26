@@ -11,8 +11,8 @@ import Test
 all : Test.Test
 all =
     Test.describe "NoCatchAllForSpecificRemainingPatterns"
-        [ Test.test "allow: cases are all imported variants" <|
-            \() ->
+        [ Test.test "allow: cases are all imported variants"
+            (\() ->
                 """module A exposing (..)
 a =
     case Nothing of
@@ -24,8 +24,9 @@ a =
 """
                     |> runWithAnyConfiguration
                         Review.Test.expectNoErrors
-        , Test.test "allow: catch-all catches infinite cases" <|
-            \() ->
+            )
+        , Test.test "allow: catch-all catches infinite cases"
+            (\() ->
                 """module A exposing (..)
 a =
     case 0 of
@@ -37,8 +38,9 @@ a =
 """
                     |> runWithAnyConfiguration
                         Review.Test.expectNoErrors
-        , Test.test "allow: single-case" <|
-            \() ->
+            )
+        , Test.test "allow: single-case"
+            (\() ->
                 """module A exposing (..)
 type Wrap filling
     = Yum filling
@@ -49,8 +51,9 @@ a =
 """
                     |> runWithAnyConfiguration
                         Review.Test.expectNoErrors
-        , Test.test "allow: imported variant with non-catch-all attachment" <|
-            \() ->
+            )
+        , Test.test "allow: imported variant with non-catch-all attachment"
+            (\() ->
                 """module A exposing (..)
 a =
     case Nothing of
@@ -62,8 +65,9 @@ a =
 """
                     |> runWithAnyConfiguration
                         Review.Test.expectNoErrors
-        , Test.test "allow: list with non-catch-all element" <|
-            \() ->
+            )
+        , Test.test "allow: list with non-catch-all element"
+            (\() ->
                 """module A exposing (..)
 a =
     case [] of
@@ -75,8 +79,9 @@ a =
 """
                     |> runWithAnyConfiguration
                         Review.Test.expectNoErrors
-        , Test.test "allow: cases are [] and _::_" <|
-            \() ->
+            )
+        , Test.test "allow: cases are [] and _::_"
+            (\() ->
                 """module A exposing (..)
 a =
     case [] of
@@ -88,8 +93,9 @@ a =
 """
                     |> runWithAnyConfiguration
                         Review.Test.expectNoErrors
-        , Test.test "allow: cases are [] and [_] and _::_::_" <|
-            \() ->
+            )
+        , Test.test "allow: cases are [] and [_] and _::_::_"
+            (\() ->
                 """module A exposing (..)
 a =
     case [] of
@@ -104,8 +110,9 @@ a =
 """
                     |> runWithAnyConfiguration
                         Review.Test.expectNoErrors
-        , Test.test "allow: cases are [] and _::[] and _::_::_" <|
-            \() ->
+            )
+        , Test.test "allow: cases are [] and _::[] and _::_::_"
+            (\() ->
                 """module A exposing (..)
 a =
     case [] of
@@ -120,8 +127,9 @@ a =
 """
                     |> runWithAnyConfiguration
                         Review.Test.expectNoErrors
-        , Test.test "allow: cases are [] and [_] and _::_" <|
-            \() ->
+            )
+        , Test.test "allow: cases are [] and [_] and _::_"
+            (\() ->
                 """module A exposing (..)
 a =
     case [] of
@@ -136,8 +144,9 @@ a =
 """
                     |> runWithAnyConfiguration
                         Review.Test.expectNoErrors
-        , Test.test "report _ case with imported choice type" <|
-            \() ->
+            )
+        , Test.test "report _ case with imported choice type"
+            (\() ->
                 """module A exposing (..)
 a =
     case Nothing of
@@ -169,8 +178,9 @@ a =
 """
                             ]
                         )
-        , Test.test "report _ case with imported choice type, non-trivial variant that matches all sub-values" <|
-            \() ->
+            )
+        , Test.test "report _ case with imported choice type, non-trivial variant that matches all sub-values"
+            (\() ->
                 """module A exposing (..)
 type SingleVariant = SingleVariant ( { n : () }, () )
 a =
@@ -204,8 +214,9 @@ a =
 """
                             ]
                         )
-        , Test.test "report _ case with imported choice type fully qualified" <|
-            \() ->
+            )
+        , Test.test "report _ case with imported choice type fully qualified"
+            (\() ->
                 """module A exposing (..)
 a =
     case Maybe.Nothing of
@@ -237,8 +248,9 @@ a =
 """
                             ]
                         )
-        , Test.test "report _ case with dependency imported choice type fully qualified" <|
-            \() ->
+            )
+        , Test.test "report _ case with dependency imported choice type fully qualified"
+            (\() ->
                 """module A exposing (..)
 import Parser.Advanced
 continueLoop step =
@@ -279,8 +291,9 @@ continueLoop step =
             Debug.todo ""
 """
                         ]
-        , Test.test "should not report _ case with module declared choice type when onlyReportCatchAllIfEquivalentToSinglePattern = True" <|
-            \() ->
+            )
+        , Test.test "should not report _ case with module declared choice type when onlyReportCatchAllIfEquivalentToSinglePattern = True"
+            (\() ->
                 """module A exposing (..)
 type Resource
     = Loaded String
@@ -299,8 +312,9 @@ a =
                             { onlyReportCatchAllIfEquivalentToSinglePattern = True }
                         )
                     |> Review.Test.expectNoErrors
-        , Test.test "report _ case with module declared choice type when onlyReportCatchAllIfEquivalentToSinglePattern = False" <|
-            \() ->
+            )
+        , Test.test "report _ case with module declared choice type when onlyReportCatchAllIfEquivalentToSinglePattern = False"
+            (\() ->
                 """module A exposing (..)
 type Resource
     = Loaded String
@@ -345,6 +359,7 @@ a =
             False
 """
                         ]
+            )
         , Test.test "report _ case with _::_"
             (\() ->
                 """module A exposing (..)
@@ -379,8 +394,8 @@ a =
                             ]
                         )
             )
-        , Test.test "report not _ case with _::_::_ when onlyReportCatchAllIfEquivalentToSinglePattern = True" <|
-            \() ->
+        , Test.test "report not _ case with _::_::_ when onlyReportCatchAllIfEquivalentToSinglePattern = True"
+            (\() ->
                 """module A exposing (..)
 a =
     case [] of
@@ -395,6 +410,7 @@ a =
                             { onlyReportCatchAllIfEquivalentToSinglePattern = True }
                         )
                     |> Review.Test.expectNoErrors
+            )
         , Test.test "report _ case with _::_ when onlyReportCatchAllIfEquivalentToSinglePattern = False"
             (\() ->
                 """module A exposing (..)
@@ -429,8 +445,8 @@ a =
                             ]
                         )
             )
-        , Test.test "should not report _ case with _::_::_ when onlyReportCatchAllIfEquivalentToSinglePattern = True" <|
-            \() ->
+        , Test.test "should not report _ case with _::_::_ when onlyReportCatchAllIfEquivalentToSinglePattern = True"
+            (\() ->
                 """module A exposing (..)
 a =
     case [] of
@@ -445,8 +461,9 @@ a =
                             { onlyReportCatchAllIfEquivalentToSinglePattern = True }
                         )
                     |> Review.Test.expectNoErrors
-        , Test.test "report _ case with _::_::_ when onlyReportCatchAllIfEquivalentToSinglePattern = False" <|
-            \() ->
+            )
+        , Test.test "report _ case with _::_::_ when onlyReportCatchAllIfEquivalentToSinglePattern = False"
+            (\() ->
                 """module A exposing (..)
 a =
     case [] of
@@ -483,8 +500,9 @@ a =
             Nothing
 """
                         ]
-        , Test.test "report _ case with _::(_::_) when onlyReportCatchAllIfEquivalentToSinglePattern = False" <|
-            \() ->
+            )
+        , Test.test "report _ case with _::(_::_) when onlyReportCatchAllIfEquivalentToSinglePattern = False"
+            (\() ->
                 """module A exposing (..)
 a =
     case [] of
@@ -521,8 +539,9 @@ a =
             Nothing
 """
                         ]
-        , Test.test "report _ case with _::((_::_) as variable) when onlyReportCatchAllIfEquivalentToSinglePattern = False" <|
-            \() ->
+            )
+        , Test.test "report _ case with _::((_::_) as variable) when onlyReportCatchAllIfEquivalentToSinglePattern = False"
+            (\() ->
                 """module A exposing (..)
 a =
     case [] of
@@ -559,6 +578,7 @@ a =
             Nothing
 """
                         ]
+            )
         , Test.test "report variable pattern case with []"
             (\() ->
                 """module A exposing (..)
