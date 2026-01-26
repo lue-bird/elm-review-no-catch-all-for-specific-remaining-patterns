@@ -1,7 +1,7 @@
 {
     "type": "package",
     "name": "lue-bird/elm-review-no-catch-all-for-specific-remaining-patterns",
-    "summary": "exhaustively list all specific cases if possible",
+    "summary": "list specific case(s) instead of _ ->",
     "license": "MIT",
     "version": "1.0.2",
     "exposed-modules": [
