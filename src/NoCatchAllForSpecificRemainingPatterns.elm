@@ -440,22 +440,42 @@ badCaseOfToError config context caseOf =
 
                                 specificElementCountCasePatternsToAdd : List String
                                 specificElementCountCasePatternsToAdd =
-                                    FastSet.diff
-                                        (FastSet.fromList (List.range 0 greatestSpecificElementCount))
-                                        catchList.specificElementCounts
-                                        |> FastSet.toList
-                                        |> List.map printListPatternIgnoringElementsWithCount
+                                    List.range 0 greatestSpecificElementCount
+                                        |> List.filterMap
+                                            (\possibleElementCount ->
+                                                if
+                                                    FastSet.member possibleElementCount
+                                                        catchList.specificElementCounts
+                                                then
+                                                    Nothing
+
+                                                else
+                                                    Just
+                                                        (printListPatternIgnoringElementsWithCount
+                                                            possibleElementCount
+                                                        )
+                                            )
                             in
                             specificElementCountCasePatternsToAdd
                                 ++ [ String.repeat greatestSpecificElementCount "_ :: " ++ "_ :: _"
                                    ]
 
                         Just allAfterElementCount ->
-                            FastSet.diff
-                                (FastSet.fromList (List.range 0 (allAfterElementCount - 1)))
-                                catchList.specificElementCounts
-                                |> FastSet.toList
-                                |> List.map printListPatternIgnoringElementsWithCount
+                            List.range 0 (allAfterElementCount - 1)
+                                |> List.filterMap
+                                    (\possibleElementCount ->
+                                        if
+                                            FastSet.member possibleElementCount
+                                                catchList.specificElementCounts
+                                        then
+                                            Nothing
+
+                                        else
+                                            Just
+                                                (printListPatternIgnoringElementsWithCount
+                                                    possibleElementCount
+                                                )
+                                    )
 
                 CatchChoiceType catchChoiceType ->
                     let
