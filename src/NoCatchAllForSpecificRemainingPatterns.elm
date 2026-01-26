@@ -617,7 +617,7 @@ patternCatchesAll context (Elm.Syntax.Node.Node patternRange pattern) =
             True
 
         Elm.Syntax.Pattern.RecordPattern _ ->
-            False
+            True
 
         Elm.Syntax.Pattern.CharPattern _ ->
             False

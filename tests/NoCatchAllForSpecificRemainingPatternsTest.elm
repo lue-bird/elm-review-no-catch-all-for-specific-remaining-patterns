@@ -169,6 +169,41 @@ a =
 """
                             ]
                         )
+        , Test.test "report _ case with imported choice type, non-trivial variant that matches all sub-values" <|
+            \() ->
+                """module A exposing (..)
+type SingleVariant = SingleVariant ( { n : () }, () )
+a =
+    case Nothing of
+        Just (SingleVariant ( ({ n }) as record, () )) ->
+            n
+        
+        _ ->
+            0
+"""
+                    |> runWithAnyConfiguration
+                        (Review.Test.expectErrors
+                            [ Review.Test.error
+                                { message = "catch-all can be replaced by more specific patterns"
+                                , details =
+                                    [ "The last case in this case-of covers a finite number of specific patterns."
+                                    , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
+                                    ]
+                                , under = "_"
+                                }
+                                |> Review.Test.whenFixed
+                                    """module A exposing (..)
+type SingleVariant = SingleVariant ( { n : () }, () )
+a =
+    case Nothing of
+        Just (SingleVariant ( ({ n }) as record, () )) ->
+            n
+        
+        Nothing ->
+            0
+"""
+                            ]
+                        )
         , Test.test "report _ case with imported choice type fully qualified" <|
             \() ->
                 """module A exposing (..)
