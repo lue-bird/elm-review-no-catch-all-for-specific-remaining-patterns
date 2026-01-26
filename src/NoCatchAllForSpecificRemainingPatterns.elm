@@ -601,6 +601,7 @@ printListPatternIgnoringElementsWithCount elementCount =
 
 patternCatchesAll : ModuleContext -> Elm.Syntax.Node.Node Elm.Syntax.Pattern.Pattern -> Bool
 patternCatchesAll context (Elm.Syntax.Node.Node patternRange pattern) =
+    -- IGNORE TCO
     case pattern of
         Elm.Syntax.Pattern.AllPattern ->
             True
@@ -703,6 +704,7 @@ with at least 2 cases.
 -}
 lastCasePatternContainedVariables : Elm.Syntax.Pattern.Pattern -> List String
 lastCasePatternContainedVariables pattern =
+    -- IGNORE TCO
     case pattern of
         Elm.Syntax.Pattern.RecordPattern _ ->
             []
@@ -735,7 +737,7 @@ lastCasePatternContainedVariables pattern =
             []
 
         Elm.Syntax.Pattern.TuplePattern _ ->
-            -- TODO not supported yet
+            -- not supported yet
             []
 
         Elm.Syntax.Pattern.VarPattern variable ->
@@ -814,7 +816,7 @@ patternToFiniteNarrow context (Elm.Syntax.Node.Node patternRange pattern) =
                 Nothing
 
         Elm.Syntax.Pattern.TuplePattern _ ->
-            -- TODO for now
+            -- not supported yet
             Nothing
 
         Elm.Syntax.Pattern.AsPattern aliasedPattern _ ->
