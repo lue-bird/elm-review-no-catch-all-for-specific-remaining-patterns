@@ -859,16 +859,6 @@ tailPatternExpand :
         , tail : Maybe (Elm.Syntax.Node.Node Elm.Syntax.Pattern.Pattern)
         }
 tailPatternExpand patternNode =
-    let
-        patternAsTail :
-            ()
-            ->
-                { elements : List (Elm.Syntax.Node.Node Elm.Syntax.Pattern.Pattern)
-                , tail : Maybe (Elm.Syntax.Node.Node Elm.Syntax.Pattern.Pattern)
-                }
-        patternAsTail () =
-            { elements = [], tail = Just patternNode }
-    in
     case patternNode |> Elm.Syntax.Node.value of
         Elm.Syntax.Pattern.ListPattern elementPatterns ->
             { elements = elementPatterns, tail = Nothing }
@@ -876,44 +866,45 @@ tailPatternExpand patternNode =
         Elm.Syntax.Pattern.UnConsPattern headPattern tailPattern ->
             consPatternExpand { head = headPattern, tail = tailPattern }
 
+        Elm.Syntax.Pattern.ParenthesizedPattern inParens ->
+            tailPatternExpand inParens
+
+        Elm.Syntax.Pattern.AsPattern aliasedPatternNode _ ->
+            tailPatternExpand aliasedPatternNode
+
         Elm.Syntax.Pattern.AllPattern ->
-            patternAsTail ()
-
-        Elm.Syntax.Pattern.UnitPattern ->
-            patternAsTail ()
-
-        Elm.Syntax.Pattern.CharPattern _ ->
-            patternAsTail ()
-
-        Elm.Syntax.Pattern.StringPattern _ ->
-            patternAsTail ()
-
-        Elm.Syntax.Pattern.IntPattern _ ->
-            patternAsTail ()
-
-        Elm.Syntax.Pattern.HexPattern _ ->
-            patternAsTail ()
-
-        Elm.Syntax.Pattern.FloatPattern _ ->
-            patternAsTail ()
-
-        Elm.Syntax.Pattern.TuplePattern _ ->
-            patternAsTail ()
-
-        Elm.Syntax.Pattern.RecordPattern _ ->
-            patternAsTail ()
+            { elements = [], tail = Just patternNode }
 
         Elm.Syntax.Pattern.VarPattern _ ->
-            patternAsTail ()
+            { elements = [], tail = Just patternNode }
+
+        -- all patterns below won't type check
+        Elm.Syntax.Pattern.UnitPattern ->
+            { elements = [], tail = Just patternNode }
+
+        Elm.Syntax.Pattern.CharPattern _ ->
+            { elements = [], tail = Just patternNode }
+
+        Elm.Syntax.Pattern.StringPattern _ ->
+            { elements = [], tail = Just patternNode }
+
+        Elm.Syntax.Pattern.IntPattern _ ->
+            { elements = [], tail = Just patternNode }
+
+        Elm.Syntax.Pattern.HexPattern _ ->
+            { elements = [], tail = Just patternNode }
+
+        Elm.Syntax.Pattern.FloatPattern _ ->
+            { elements = [], tail = Just patternNode }
+
+        Elm.Syntax.Pattern.TuplePattern _ ->
+            { elements = [], tail = Just patternNode }
+
+        Elm.Syntax.Pattern.RecordPattern _ ->
+            { elements = [], tail = Just patternNode }
 
         Elm.Syntax.Pattern.NamedPattern _ _ ->
-            patternAsTail ()
-
-        Elm.Syntax.Pattern.AsPattern _ _ ->
-            patternAsTail ()
-
-        Elm.Syntax.Pattern.ParenthesizedPattern _ ->
-            patternAsTail ()
+            { elements = [], tail = Just patternNode }
 
 
 type CatchFiniteNarrow

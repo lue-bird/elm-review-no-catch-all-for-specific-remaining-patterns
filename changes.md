@@ -2,6 +2,7 @@
   - add configuration `onlyReportCatchAllIfEquivalentToSinglePattern`
     to `NoCatchAllForSpecificRemainingPatterns.rule`.
     Thanks for [suggesting it, @jfmengels](https://github.com/lue-bird/elm-review-no-catch-all-for-specific-remaining-patterns/issues/4)
+  - go through `as` and parenthesized patterns when checking for list patterns
 
 #### 1.0.2
   - fix bug where modules exposing multiple `type`s could "randomly"

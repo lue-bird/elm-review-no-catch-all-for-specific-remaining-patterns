@@ -448,6 +448,82 @@ a =
             Nothing
 """
                         ]
+        , Test.test "report _ case with _::(_::_) when onlyReportCatchAllIfEquivalentToSinglePattern = False" <|
+            \() ->
+                """module A exposing (..)
+a =
+    case [] of
+        e0 :: (e1 :: el2Up) ->
+            Just (e0 :: e1 :: el2Up)
+        
+        _ ->
+            Nothing
+"""
+                    |> Review.Test.run
+                        (NoCatchAllForSpecificRemainingPatterns.rule
+                            { onlyReportCatchAllIfEquivalentToSinglePattern = False }
+                        )
+                    |> Review.Test.expectErrors
+                        [ Review.Test.error
+                            { message = "catch-all can be replaced by more specific patterns"
+                            , details =
+                                [ "The last case in this case-of covers a finite number of specific patterns."
+                                , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
+                                ]
+                            , under = "_"
+                            }
+                            |> Review.Test.whenFixed
+                                """module A exposing (..)
+a =
+    case [] of
+        e0 :: (e1 :: el2Up) ->
+            Just (e0 :: e1 :: el2Up)
+        
+        [] ->
+            Nothing
+
+        [ _ ] ->
+            Nothing
+"""
+                        ]
+        , Test.test "report _ case with _::((_::_) as variable) when onlyReportCatchAllIfEquivalentToSinglePattern = False" <|
+            \() ->
+                """module A exposing (..)
+a =
+    case [] of
+        e0 :: ((e1 :: el2Up) as el1Up) ->
+            Just (e0 :: e1 :: el2Up)
+        
+        _ ->
+            Nothing
+"""
+                    |> Review.Test.run
+                        (NoCatchAllForSpecificRemainingPatterns.rule
+                            { onlyReportCatchAllIfEquivalentToSinglePattern = False }
+                        )
+                    |> Review.Test.expectErrors
+                        [ Review.Test.error
+                            { message = "catch-all can be replaced by more specific patterns"
+                            , details =
+                                [ "The last case in this case-of covers a finite number of specific patterns."
+                                , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
+                                ]
+                            , under = "_"
+                            }
+                            |> Review.Test.whenFixed
+                                """module A exposing (..)
+a =
+    case [] of
+        e0 :: ((e1 :: el2Up) as el1Up) ->
+            Just (e0 :: e1 :: el2Up)
+        
+        [] ->
+            Nothing
+
+        [ _ ] ->
+            Nothing
+"""
+                        ]
         , Test.test "report variable case with []"
             (\() ->
                 """module A exposing (..)
