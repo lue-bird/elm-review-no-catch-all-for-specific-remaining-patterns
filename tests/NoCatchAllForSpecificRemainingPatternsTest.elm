@@ -559,7 +559,7 @@ a =
             Nothing
 """
                         ]
-        , Test.test "report variable case with []"
+        , Test.test "report variable pattern case with []"
             (\() ->
                 """module A exposing (..)
 a list =
@@ -589,11 +589,75 @@ a list =
         [] ->
             Nothing
         
-        _ :: _ ->
-            let
-                listFilled =
-                    list
-            in
+        (_ :: _) as listFilled ->
+            Just listFilled
+"""
+                            ]
+                        )
+            )
+        , Test.test "report variable pattern in as pattern case with []"
+            (\() ->
+                """module A exposing (..)
+a list =
+    case list of
+        [] ->
+            Nothing
+        
+        listFilled as list ->
+            Just listFilled
+"""
+                    |> runWithAnyConfiguration
+                        (Review.Test.expectErrors
+                            [ Review.Test.error
+                                { message = "catch-all can be replaced by more specific patterns"
+                                , details =
+                                    [ "The last case in this case-of covers a finite number of specific patterns."
+                                    , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
+                                    ]
+                                , under = "listFilled as list"
+                                }
+                                |> Review.Test.whenFixed
+                                    """module A exposing (..)
+a list =
+    case list of
+        [] ->
+            Nothing
+        
+        ((_ :: _) as listFilled) as list ->
+            Just listFilled
+"""
+                            ]
+                        )
+            )
+        , Test.test "report parenthesized all pattern in as pattern in as pattern case with []"
+            (\() ->
+                """module A exposing (..)
+a list =
+    case list of
+        [] ->
+            Nothing
+        
+        ((_ as listFilled)) as list ->
+            Just listFilled
+"""
+                    |> runWithAnyConfiguration
+                        (Review.Test.expectErrors
+                            [ Review.Test.error
+                                { message = "catch-all can be replaced by more specific patterns"
+                                , details =
+                                    [ "The last case in this case-of covers a finite number of specific patterns."
+                                    , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
+                                    ]
+                                , under = "((_ as listFilled)) as list"
+                                }
+                                |> Review.Test.whenFixed
+                                    """module A exposing (..)
+a list =
+    case list of
+        [] ->
+            Nothing
+        
+        ((_ :: _) as listFilled) as list ->
             Just listFilled
 """
                             ]

@@ -548,25 +548,31 @@ badCaseOfToError config context caseOf =
 
             expressionForEachAddedCasePrinted : String
             expressionForEachAddedCasePrinted =
-                if caseOf.lastCasePattern |> Elm.Syntax.Node.value |> patternContainsVariables then
-                    String.repeat (caseIndentation + 4) " "
-                        ++ "let\n"
-                        ++ String.repeat (caseIndentation + 8) " "
-                        ++ context.sourceInRange lastCasePatternRange
-                        ++ " =\n"
-                        ++ String.repeat (caseIndentation + 12) " "
-                        ++ stringIndentBy
-                            8
-                            (context.sourceInRange caseOf.casedExpressionRange)
-                        ++ "\n"
-                        ++ String.repeat (caseIndentation + 4) " "
-                        ++ "in\n"
-                        ++ String.repeat (caseIndentation + 4) " "
-                        ++ context.sourceInRange caseOf.lastCaseExpressionRange
+                String.repeat (caseIndentation + 4) " "
+                    ++ context.sourceInRange caseOf.lastCaseExpressionRange
 
-                else
-                    String.repeat (caseIndentation + 4) " "
-                        ++ context.sourceInRange caseOf.lastCaseExpressionRange
+            lastPatternIntroducedVariables : List String
+            lastPatternIntroducedVariables =
+                caseOf.lastCasePattern
+                    |> Elm.Syntax.Node.value
+                    |> lastCasePatternContainedVariables
+
+            toInsertBeforeReplacementPattern : String
+            toInsertBeforeReplacementPattern =
+                String.repeat caseIndentation " "
+                    ++ String.repeat (lastPatternIntroducedVariables |> List.length) "("
+
+            toInsertAfterReplacementPattern : String
+            toInsertAfterReplacementPattern =
+                (lastPatternIntroducedVariables
+                    |> List.map
+                        (\lastPatternIntroducedVariable ->
+                            ") as " ++ lastPatternIntroducedVariable
+                        )
+                    |> String.concat
+                )
+                    ++ " ->\n"
+                    ++ expressionForEachAddedCasePrinted
         in
         [ Review.Rule.errorWithFix
             { message = "catch-all can be replaced by more specific patterns"
@@ -583,10 +589,9 @@ badCaseOfToError config context caseOf =
                 (casePatternsToReplaceLastWith
                     |> List.map
                         (\casePatternToReplaceLastWith ->
-                            String.repeat caseIndentation " "
+                            toInsertBeforeReplacementPattern
                                 ++ casePatternToReplaceLastWith
-                                ++ " ->\n"
-                                ++ expressionForEachAddedCasePrinted
+                                ++ toInsertAfterReplacementPattern
                         )
                     |> String.join "\n\n"
                 )
@@ -702,58 +707,60 @@ patternCatchesAll context (Elm.Syntax.Node.Node patternRange pattern) =
                 False
 
 
-patternContainsVariables : Elm.Syntax.Pattern.Pattern -> Bool
-patternContainsVariables pattern =
+{-| Collect variables introduced by a pattern
+assumed to be a catch-all in a case-of
+with at least 2 cases.
+-}
+lastCasePatternContainedVariables : Elm.Syntax.Pattern.Pattern -> List String
+lastCasePatternContainedVariables pattern =
     case pattern of
-        Elm.Syntax.Pattern.VarPattern _ ->
-            True
-
-        Elm.Syntax.Pattern.AsPattern _ _ ->
-            True
-
         Elm.Syntax.Pattern.RecordPattern _ ->
-            True
+            []
 
         Elm.Syntax.Pattern.AllPattern ->
-            False
+            []
 
         Elm.Syntax.Pattern.UnitPattern ->
-            False
+            []
 
         Elm.Syntax.Pattern.CharPattern _ ->
-            False
+            []
 
         Elm.Syntax.Pattern.StringPattern _ ->
-            False
+            []
 
         Elm.Syntax.Pattern.IntPattern _ ->
-            False
+            []
 
         Elm.Syntax.Pattern.HexPattern _ ->
-            False
+            []
 
         Elm.Syntax.Pattern.FloatPattern _ ->
-            False
+            []
 
-        Elm.Syntax.Pattern.UnConsPattern (Elm.Syntax.Node.Node _ headPattern) (Elm.Syntax.Node.Node _ tailPattern) ->
-            -- || but TCO
-            if patternContainsVariables headPattern then
-                True
+        Elm.Syntax.Pattern.UnConsPattern _ _ ->
+            []
 
-            else
-                patternContainsVariables tailPattern
+        Elm.Syntax.Pattern.ListPattern _ ->
+            []
 
-        Elm.Syntax.Pattern.ListPattern elements ->
-            elements |> List.any (\(Elm.Syntax.Node.Node _ elementPattern) -> elementPattern |> patternContainsVariables)
+        Elm.Syntax.Pattern.TuplePattern _ ->
+            -- TODO not supported yet
+            []
 
-        Elm.Syntax.Pattern.TuplePattern partPatterns ->
-            partPatterns |> List.any (\(Elm.Syntax.Node.Node _ partPattern) -> partPattern |> patternContainsVariables)
-
-        Elm.Syntax.Pattern.NamedPattern _ attachmentPatterns ->
-            attachmentPatterns |> List.any (\(Elm.Syntax.Node.Node _ part) -> part |> patternContainsVariables)
+        Elm.Syntax.Pattern.VarPattern variable ->
+            [ variable ]
 
         Elm.Syntax.Pattern.ParenthesizedPattern (Elm.Syntax.Node.Node _ inParens) ->
-            patternContainsVariables inParens
+            lastCasePatternContainedVariables inParens
+
+        Elm.Syntax.Pattern.AsPattern (Elm.Syntax.Node.Node _ aliasedPattern) (Elm.Syntax.Node.Node _ variable) ->
+            lastCasePatternContainedVariables aliasedPattern ++ [ variable ]
+
+        Elm.Syntax.Pattern.NamedPattern _ attachmentPatterns ->
+            attachmentPatterns
+                |> List.concatMap
+                    (\(Elm.Syntax.Node.Node _ part) -> part |> lastCasePatternContainedVariables)
 
 
 type PatternFiniteNarrow
@@ -1062,25 +1069,6 @@ referenceToString reference =
             ((moduleNamePart0 :: moduleNamePart1) |> String.join ".")
                 ++ "."
                 ++ reference.name
-
-
-stringIndentBy : Int -> String -> String
-stringIndentBy additionalIndentation string =
-    case string |> String.lines of
-        [] ->
-            ""
-
-        line0 :: line1Up ->
-            let
-                additionalIndentationString : String
-                additionalIndentationString =
-                    String.repeat additionalIndentation " "
-            in
-            line0
-                ++ (line1Up
-                        |> List.map (\line -> "\n" ++ additionalIndentationString ++ line)
-                        |> String.concat
-                   )
 
 
 listMapAndFirstJust : (a -> Maybe b) -> List a -> Maybe b
