@@ -319,30 +319,29 @@ visitExpression config expression context =
                 [] ->
                     []
 
-                [ _ ] ->
-                    []
+                case0 :: case1Up ->
+                    case case1Up |> List.reverse of
+                        [] ->
+                            -- case-of with single case
+                            []
 
-                case0 :: case1 :: case2Up ->
-                    let
-                        ( case1UpBeforeLast, ( lastCasePattern, Elm.Syntax.Node.Node lastCaseExpressionRange _ ) ) =
-                            listFilledSplitOffLast ( case1, case2Up )
-                    in
-                    if lastCasePattern |> patternCatchesAll context then
-                        case casesCombinePatternFiniteNarrowCatch context case0 case1UpBeforeLast of
-                            Nothing ->
+                        ( lastCasePattern, Elm.Syntax.Node.Node lastCaseExpressionRange _ ) :: beforeLastCaseToCase1 ->
+                            if lastCasePattern |> patternCatchesAll context then
+                                case casesCombinePatternFiniteNarrowCatch context case0 beforeLastCaseToCase1 of
+                                    Nothing ->
+                                        []
+
+                                    Just previousCasesCatchFiniteNarrow ->
+                                        badCaseOfToError config
+                                            context
+                                            { previousCasesCatchFiniteNarrow = previousCasesCatchFiniteNarrow
+                                            , casedExpressionRange = caseOf.expression |> Elm.Syntax.Node.range
+                                            , lastCasePattern = lastCasePattern
+                                            , lastCaseExpressionRange = lastCaseExpressionRange
+                                            }
+
+                            else
                                 []
-
-                            Just previousCasesCatchFiniteNarrow ->
-                                badCaseOfToError config
-                                    context
-                                    { previousCasesCatchFiniteNarrow = previousCasesCatchFiniteNarrow
-                                    , casedExpressionRange = caseOf.expression |> Elm.Syntax.Node.range
-                                    , lastCasePattern = lastCasePattern
-                                    , lastCaseExpressionRange = lastCaseExpressionRange
-                                    }
-
-                    else
-                        []
 
         Elm.Syntax.Expression.UnitExpr ->
             []
@@ -1087,17 +1086,3 @@ listMapAndFirstJust elementToMaybeFound list =
 
                 Nothing ->
                     listMapAndFirstJust elementToMaybeFound tail
-
-
-listFilledSplitOffLast : ( a, List a ) -> ( List a, a )
-listFilledSplitOffLast ( head, tail ) =
-    case tail of
-        [] ->
-            ( [], head )
-
-        tailHead :: tailTail ->
-            let
-                ( tailBeforeLast, last ) =
-                    listFilledSplitOffLast ( tailHead, tailTail )
-            in
-            ( head :: tailBeforeLast, last )
