@@ -14,7 +14,11 @@ displayResource resource =
     case resource of
         Loaded text ->
             Ui.text text
+
+        FailedToLoad error ->
+            Ui.error error
         
+        -- will be fixed to Loading ->
         _ ->
             Ui.spinner
 ```
@@ -36,6 +40,7 @@ import Review.Rule exposing (Rule)
 config : List Rule
 config =
     [ NoCatchAllForSpecificRemainingPatterns.rule
+        { onlyReportCatchAllIfEquivalentToSinglePattern = True }
     ]
 ```
 

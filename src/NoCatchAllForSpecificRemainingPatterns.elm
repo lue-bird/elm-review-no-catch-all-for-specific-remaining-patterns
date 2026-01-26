@@ -26,6 +26,7 @@ import Review.Rule
 
     config =
         [ NoCatchAllForSpecificRemainingPatterns.rule
+            { onlyReportCatchAllIfEquivalentToSinglePattern = True }
         ]
 
 
@@ -36,15 +37,20 @@ import Review.Rule
         | FailedToLoad String
         | Loading
 
+    -- with any configuration
     displayResource : Resource -> Ui
     displayResource resource =
         case resource of
             Loaded text ->
                 Ui.text text
 
+            FailedToLoad error ->
+                Ui.error error
+
             _ ->
                 Ui.spinner
 
+    -- only with { onlyReportCatchAllIfEquivalentToSinglePattern = False }
     resourceIsLoaded : Resource -> Bool
     resourceIsLoaded resource =
         case resource of
@@ -57,18 +63,7 @@ import Review.Rule
 
 ## allowed
 
-    displayResource : Resource -> Ui
-    displayResource resource =
-        case resource of
-            Loaded text ->
-                Ui.text text
-
-            FailedToLoad reason ->
-                Ui.text ("failed to load due to " ++ reason)
-
-            Loading ->
-                Ui.spinner
-
+    -- with any configuration
     resourceIsLoaded : Resource -> Bool
     resourceIsLoaded resource =
         case resource of
@@ -81,11 +76,26 @@ import Review.Rule
             Loading ->
                 False
 
+    -- only with { onlyReportCatchAllIfEquivalentToSinglePattern = True }
+    displayResource : Resource -> Ui
+    displayResource resource =
+        case resource of
+            Loaded text ->
+                Ui.text text
+
+            FailedToLoad error ->
+                Ui.error error
+
+            _ ->
+                Ui.spinner
+
 This works for variant, list and cons patterns.
 
 -}
-rule : Review.Rule.Rule
-rule =
+rule :
+    { onlyReportCatchAllIfEquivalentToSinglePattern : Bool }
+    -> Review.Rule.Rule
+rule config =
     Review.Rule.newProjectRuleSchema "NoCatchAllForSpecificRemainingPatterns" initialContext
         |> Review.Rule.providesFixesForProjectRule
         |> Review.Rule.withDependenciesProjectVisitor
@@ -96,7 +106,7 @@ rule =
                     |> Review.Rule.withDeclarationListVisitor
                         (\decls ctx -> ( [], visitDeclarations decls ctx ))
                     |> Review.Rule.withExpressionEnterVisitor
-                        (\(Elm.Syntax.Node.Node _ expr) ctx -> ( visitExpression expr ctx, ctx ))
+                        (\(Elm.Syntax.Node.Node _ expr) ctx -> ( visitExpression config expr ctx, ctx ))
             )
         |> Review.Rule.withModuleContextUsingContextCreator
             { fromProjectToModule = projectToModuleContext
@@ -274,10 +284,11 @@ visitDeclarations declarations context =
 
 
 visitExpression :
-    Elm.Syntax.Expression.Expression
+    { onlyReportCatchAllIfEquivalentToSinglePattern : Bool }
+    -> Elm.Syntax.Expression.Expression
     -> ModuleContext
     -> List (Review.Rule.Error {})
-visitExpression expression context =
+visitExpression config expression context =
     case expression of
         Elm.Syntax.Expression.CaseExpression caseOf ->
             case caseOf.cases of
@@ -309,13 +320,13 @@ visitExpression expression context =
                                 []
 
                             Just previousCasesCatchFiniteNarrow ->
-                                [ badCaseOfToError context
+                                badCaseOfToError config
+                                    context
                                     { previousCasesCatchFiniteNarrow = previousCasesCatchFiniteNarrow
                                     , casedExpressionRange = caseOf.expression |> Elm.Syntax.Node.range
                                     , lastCasePattern = lastCasePattern
                                     , lastCaseExpressionRange = lastCaseExpressionRange
                                     }
-                                ]
 
                     else
                         []
@@ -391,15 +402,16 @@ visitExpression expression context =
 
 
 badCaseOfToError :
-    ModuleContext
+    { onlyReportCatchAllIfEquivalentToSinglePattern : Bool }
+    -> ModuleContext
     ->
         { previousCasesCatchFiniteNarrow : CatchFiniteNarrow
         , lastCasePattern : Elm.Syntax.Node.Node Elm.Syntax.Pattern.Pattern
         , casedExpressionRange : Elm.Syntax.Range.Range
         , lastCaseExpressionRange : Elm.Syntax.Range.Range
         }
-    -> Review.Rule.Error {}
-badCaseOfToError context caseOf =
+    -> List (Review.Rule.Error {})
+badCaseOfToError config context caseOf =
     let
         casePatternsToReplaceLastWith : List String
         casePatternsToReplaceLastWith =
@@ -484,57 +496,78 @@ badCaseOfToError context caseOf =
                                         )
                             )
 
-        (Elm.Syntax.Node.Node lastCasePatternRange _) =
-            caseOf.lastCasePattern
+        shouldNotBeReported : Bool
+        shouldNotBeReported =
+            config.onlyReportCatchAllIfEquivalentToSinglePattern
+                && (case casePatternsToReplaceLastWith of
+                        [ _ ] ->
+                            False
 
-        caseIndentation : Int
-        caseIndentation =
-            lastCasePatternRange.start.column - 1
+                        _ :: _ :: _ ->
+                            True
 
-        expressionForEachAddedCasePrinted : String
-        expressionForEachAddedCasePrinted =
-            if caseOf.lastCasePattern |> Elm.Syntax.Node.value |> patternContainsVariables then
-                String.repeat (caseIndentation + 4) " "
-                    ++ "let\n"
-                    ++ String.repeat (caseIndentation + 8) " "
-                    ++ context.sourceInRange lastCasePatternRange
-                    ++ " =\n"
-                    ++ String.repeat (caseIndentation + 12) " "
-                    ++ stringIndentBy
-                        8
-                        (context.sourceInRange caseOf.casedExpressionRange)
-                    ++ "\n"
-                    ++ String.repeat (caseIndentation + 4) " "
-                    ++ "in\n"
-                    ++ String.repeat (caseIndentation + 4) " "
-                    ++ context.sourceInRange caseOf.lastCaseExpressionRange
-
-            else
-                String.repeat (caseIndentation + 4) " "
-                    ++ context.sourceInRange caseOf.lastCaseExpressionRange
+                        -- inexhaustive cases or other non-compiling code
+                        [] ->
+                            True
+                   )
     in
-    Review.Rule.errorWithFix
-        { message = "catch-all can be replaced by more specific patterns"
-        , details =
-            [ "The last case in this case-of covers a finite number of specific patterns."
-            , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
-            ]
-        }
-        lastCasePatternRange
-        [ Review.Fix.replaceRangeBy
-            { start = { row = lastCasePatternRange.start.row, column = 1 }
-            , end = caseOf.lastCaseExpressionRange.end
+    if shouldNotBeReported then
+        []
+
+    else
+        let
+            (Elm.Syntax.Node.Node lastCasePatternRange _) =
+                caseOf.lastCasePattern
+
+            caseIndentation : Int
+            caseIndentation =
+                lastCasePatternRange.start.column - 1
+
+            expressionForEachAddedCasePrinted : String
+            expressionForEachAddedCasePrinted =
+                if caseOf.lastCasePattern |> Elm.Syntax.Node.value |> patternContainsVariables then
+                    String.repeat (caseIndentation + 4) " "
+                        ++ "let\n"
+                        ++ String.repeat (caseIndentation + 8) " "
+                        ++ context.sourceInRange lastCasePatternRange
+                        ++ " =\n"
+                        ++ String.repeat (caseIndentation + 12) " "
+                        ++ stringIndentBy
+                            8
+                            (context.sourceInRange caseOf.casedExpressionRange)
+                        ++ "\n"
+                        ++ String.repeat (caseIndentation + 4) " "
+                        ++ "in\n"
+                        ++ String.repeat (caseIndentation + 4) " "
+                        ++ context.sourceInRange caseOf.lastCaseExpressionRange
+
+                else
+                    String.repeat (caseIndentation + 4) " "
+                        ++ context.sourceInRange caseOf.lastCaseExpressionRange
+        in
+        [ Review.Rule.errorWithFix
+            { message = "catch-all can be replaced by more specific patterns"
+            , details =
+                [ "The last case in this case-of covers a finite number of specific patterns."
+                , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
+                ]
             }
-            (casePatternsToReplaceLastWith
-                |> List.map
-                    (\casePatternToReplaceLastWith ->
-                        String.repeat caseIndentation " "
-                            ++ casePatternToReplaceLastWith
-                            ++ " ->\n"
-                            ++ expressionForEachAddedCasePrinted
-                    )
-                |> String.join "\n\n"
-            )
+            lastCasePatternRange
+            [ Review.Fix.replaceRangeBy
+                { start = { row = lastCasePatternRange.start.row, column = 1 }
+                , end = caseOf.lastCaseExpressionRange.end
+                }
+                (casePatternsToReplaceLastWith
+                    |> List.map
+                        (\casePatternToReplaceLastWith ->
+                            String.repeat caseIndentation " "
+                                ++ casePatternToReplaceLastWith
+                                ++ " ->\n"
+                                ++ expressionForEachAddedCasePrinted
+                        )
+                    |> String.join "\n\n"
+                )
+            ]
         ]
 
 

@@ -1,5 +1,6 @@
 module NoCatchAllForSpecificRemainingPatternsTest exposing (all)
 
+import Expect
 import NoCatchAllForSpecificRemainingPatterns
 import Review.Project
 import Review.Test
@@ -21,8 +22,8 @@ a =
         Just _ ->
             1
 """
-                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
-                    |> Review.Test.expectNoErrors
+                    |> runWithAnyConfiguration
+                        Review.Test.expectNoErrors
         , Test.test "allow: catch-all catches infinite cases" <|
             \() ->
                 """module A exposing (..)
@@ -34,8 +35,8 @@ a =
         _ ->
             1
 """
-                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
-                    |> Review.Test.expectNoErrors
+                    |> runWithAnyConfiguration
+                        Review.Test.expectNoErrors
         , Test.test "allow: single-case" <|
             \() ->
                 """module A exposing (..)
@@ -46,8 +47,8 @@ a =
         Wrap filling ->
             filling
 """
-                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
-                    |> Review.Test.expectNoErrors
+                    |> runWithAnyConfiguration
+                        Review.Test.expectNoErrors
         , Test.test "allow: imported variant with non-catch-all attachment" <|
             \() ->
                 """module A exposing (..)
@@ -59,8 +60,8 @@ a =
         _ ->
             0
 """
-                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
-                    |> Review.Test.expectNoErrors
+                    |> runWithAnyConfiguration
+                        Review.Test.expectNoErrors
         , Test.test "allow: list with non-catch-all element" <|
             \() ->
                 """module A exposing (..)
@@ -72,8 +73,8 @@ a =
         _ ->
             0
 """
-                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
-                    |> Review.Test.expectNoErrors
+                    |> runWithAnyConfiguration
+                        Review.Test.expectNoErrors
         , Test.test "allow: cases are [] and _::_" <|
             \() ->
                 """module A exposing (..)
@@ -85,8 +86,8 @@ a =
         _ :: _ ->
             1
 """
-                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
-                    |> Review.Test.expectNoErrors
+                    |> runWithAnyConfiguration
+                        Review.Test.expectNoErrors
         , Test.test "allow: cases are [] and [_] and _::_::_" <|
             \() ->
                 """module A exposing (..)
@@ -101,8 +102,8 @@ a =
         _ :: _ :: _ ->
             2
 """
-                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
-                    |> Review.Test.expectNoErrors
+                    |> runWithAnyConfiguration
+                        Review.Test.expectNoErrors
         , Test.test "allow: cases are [] and _::[] and _::_::_" <|
             \() ->
                 """module A exposing (..)
@@ -117,8 +118,8 @@ a =
         _ :: _ :: _ ->
             2
 """
-                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
-                    |> Review.Test.expectNoErrors
+                    |> runWithAnyConfiguration
+                        Review.Test.expectNoErrors
         , Test.test "allow: cases are [] and [_] and _::_" <|
             \() ->
                 """module A exposing (..)
@@ -133,8 +134,8 @@ a =
         _ :: _ ->
             2
 """
-                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
-                    |> Review.Test.expectNoErrors
+                    |> runWithAnyConfiguration
+                        Review.Test.expectNoErrors
         , Test.test "report _ case with imported choice type" <|
             \() ->
                 """module A exposing (..)
@@ -146,18 +147,18 @@ a =
         _ ->
             0
 """
-                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
-                    |> Review.Test.expectErrors
-                        [ Review.Test.error
-                            { message = "catch-all can be replaced by more specific patterns"
-                            , details =
-                                [ "The last case in this case-of covers a finite number of specific patterns."
-                                , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
-                                ]
-                            , under = "_"
-                            }
-                            |> Review.Test.whenFixed
-                                """module A exposing (..)
+                    |> runWithAnyConfiguration
+                        (Review.Test.expectErrors
+                            [ Review.Test.error
+                                { message = "catch-all can be replaced by more specific patterns"
+                                , details =
+                                    [ "The last case in this case-of covers a finite number of specific patterns."
+                                    , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
+                                    ]
+                                , under = "_"
+                                }
+                                |> Review.Test.whenFixed
+                                    """module A exposing (..)
 a =
     case Nothing of
         Just n ->
@@ -166,7 +167,8 @@ a =
         Nothing ->
             0
 """
-                        ]
+                            ]
+                        )
         , Test.test "report _ case with imported choice type fully qualified" <|
             \() ->
                 """module A exposing (..)
@@ -178,18 +180,18 @@ a =
         _ ->
             0
 """
-                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
-                    |> Review.Test.expectErrors
-                        [ Review.Test.error
-                            { message = "catch-all can be replaced by more specific patterns"
-                            , details =
-                                [ "The last case in this case-of covers a finite number of specific patterns."
-                                , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
-                                ]
-                            , under = "_"
-                            }
-                            |> Review.Test.whenFixed
-                                """module A exposing (..)
+                    |> runWithAnyConfiguration
+                        (Review.Test.expectErrors
+                            [ Review.Test.error
+                                { message = "catch-all can be replaced by more specific patterns"
+                                , details =
+                                    [ "The last case in this case-of covers a finite number of specific patterns."
+                                    , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
+                                    ]
+                                , under = "_"
+                                }
+                                |> Review.Test.whenFixed
+                                    """module A exposing (..)
 a =
     case Maybe.Nothing of
         Maybe.Just n ->
@@ -198,7 +200,8 @@ a =
         Maybe.Nothing ->
             0
 """
-                        ]
+                            ]
+                        )
         , Test.test "report _ case with dependency imported choice type fully qualified" <|
             \() ->
                 """module A exposing (..)
@@ -215,7 +218,9 @@ continueLoop step =
                         (Review.Project.new
                             |> Review.Project.addDependency Review.Test.Dependencies.elmParser
                         )
-                        NoCatchAllForSpecificRemainingPatterns.rule
+                        (NoCatchAllForSpecificRemainingPatterns.rule
+                            { onlyReportCatchAllIfEquivalentToSinglePattern = False }
+                        )
                     |> Review.Test.expectErrors
                         [ Review.Test.error
                             { message = "catch-all can be replaced by more specific patterns"
@@ -239,7 +244,7 @@ continueLoop step =
             Debug.todo ""
 """
                         ]
-        , Test.test "report _ case with module declared choice type" <|
+        , Test.test "should not report _ case with module declared choice type when onlyReportCatchAllIfEquivalentToSinglePattern = True" <|
             \() ->
                 """module A exposing (..)
 type Resource
@@ -254,7 +259,30 @@ a =
         _ ->
             False
 """
-                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
+                    |> Review.Test.run
+                        (NoCatchAllForSpecificRemainingPatterns.rule
+                            { onlyReportCatchAllIfEquivalentToSinglePattern = True }
+                        )
+                    |> Review.Test.expectNoErrors
+        , Test.test "report _ case with module declared choice type when onlyReportCatchAllIfEquivalentToSinglePattern = False" <|
+            \() ->
+                """module A exposing (..)
+type Resource
+    = Loaded String
+    | FailedToLoad String
+    | Loading
+a =
+    case Loading of
+        Loaded text ->
+            not (String.isEmpty text)
+
+        _ ->
+            False
+"""
+                    |> Review.Test.run
+                        (NoCatchAllForSpecificRemainingPatterns.rule
+                            { onlyReportCatchAllIfEquivalentToSinglePattern = False }
+                        )
                     |> Review.Test.expectErrors
                         [ Review.Test.error
                             { message = "catch-all can be replaced by more specific patterns"
@@ -282,8 +310,8 @@ a =
             False
 """
                         ]
-        , Test.test "report _ case with _::_" <|
-            \() ->
+        , Test.test "report _ case with _::_"
+            (\() ->
                 """module A exposing (..)
 a =
     case [] of
@@ -293,18 +321,18 @@ a =
         _ ->
             []
 """
-                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
-                    |> Review.Test.expectErrors
-                        [ Review.Test.error
-                            { message = "catch-all can be replaced by more specific patterns"
-                            , details =
-                                [ "The last case in this case-of covers a finite number of specific patterns."
-                                , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
-                                ]
-                            , under = "_"
-                            }
-                            |> Review.Test.whenFixed
-                                """module A exposing (..)
+                    |> runWithAnyConfiguration
+                        (Review.Test.expectErrors
+                            [ Review.Test.error
+                                { message = "catch-all can be replaced by more specific patterns"
+                                , details =
+                                    [ "The last case in this case-of covers a finite number of specific patterns."
+                                    , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
+                                    ]
+                                , under = "_"
+                                }
+                                |> Review.Test.whenFixed
+                                    """module A exposing (..)
 a =
     case [] of
         e0 :: e1Up ->
@@ -313,8 +341,10 @@ a =
         [] ->
             []
 """
-                        ]
-        , Test.test "report _ case with _::_::_" <|
+                            ]
+                        )
+            )
+        , Test.test "report not _ case with _::_::_ when onlyReportCatchAllIfEquivalentToSinglePattern = True" <|
             \() ->
                 """module A exposing (..)
 a =
@@ -325,7 +355,76 @@ a =
         _ ->
             Nothing
 """
-                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
+                    |> Review.Test.run
+                        (NoCatchAllForSpecificRemainingPatterns.rule
+                            { onlyReportCatchAllIfEquivalentToSinglePattern = True }
+                        )
+                    |> Review.Test.expectNoErrors
+        , Test.test "report _ case with _::_ when onlyReportCatchAllIfEquivalentToSinglePattern = False"
+            (\() ->
+                """module A exposing (..)
+a =
+    case [] of
+        e0 :: e1Up ->
+            e0 :: e1Up
+        
+        _ ->
+            []
+"""
+                    |> runWithAnyConfiguration
+                        (Review.Test.expectErrors
+                            [ Review.Test.error
+                                { message = "catch-all can be replaced by more specific patterns"
+                                , details =
+                                    [ "The last case in this case-of covers a finite number of specific patterns."
+                                    , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
+                                    ]
+                                , under = "_"
+                                }
+                                |> Review.Test.whenFixed
+                                    """module A exposing (..)
+a =
+    case [] of
+        e0 :: e1Up ->
+            e0 :: e1Up
+        
+        [] ->
+            []
+"""
+                            ]
+                        )
+            )
+        , Test.test "should not report _ case with _::_::_ when onlyReportCatchAllIfEquivalentToSinglePattern = True" <|
+            \() ->
+                """module A exposing (..)
+a =
+    case [] of
+        e0 :: e1 :: el2Up ->
+            Just (e0 :: e1 :: el2Up)
+        
+        _ ->
+            Nothing
+"""
+                    |> Review.Test.run
+                        (NoCatchAllForSpecificRemainingPatterns.rule
+                            { onlyReportCatchAllIfEquivalentToSinglePattern = True }
+                        )
+                    |> Review.Test.expectNoErrors
+        , Test.test "report _ case with _::_::_ when onlyReportCatchAllIfEquivalentToSinglePattern = False" <|
+            \() ->
+                """module A exposing (..)
+a =
+    case [] of
+        e0 :: e1 :: el2Up ->
+            Just (e0 :: e1 :: el2Up)
+        
+        _ ->
+            Nothing
+"""
+                    |> Review.Test.run
+                        (NoCatchAllForSpecificRemainingPatterns.rule
+                            { onlyReportCatchAllIfEquivalentToSinglePattern = False }
+                        )
                     |> Review.Test.expectErrors
                         [ Review.Test.error
                             { message = "catch-all can be replaced by more specific patterns"
@@ -349,8 +448,8 @@ a =
             Nothing
 """
                         ]
-        , Test.test "report variable case with []" <|
-            \() ->
+        , Test.test "report variable case with []"
+            (\() ->
                 """module A exposing (..)
 a list =
     case list of
@@ -360,20 +459,20 @@ a list =
         listFilled ->
             Just listFilled
 """
-                    |> Review.Test.run NoCatchAllForSpecificRemainingPatterns.rule
-                    |> Review.Test.expectErrors
-                        [ Review.Test.error
-                            { message = "catch-all can be replaced by more specific patterns"
-                            , details =
-                                [ "The last case in this case-of covers a finite number of specific patterns."
-                                , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
-                                ]
-                            , under = "listFilled"
-                            }
-                            |> Review.Test.atExactly
-                                { start = { row = 7, column = 9 }, end = { row = 7, column = 19 } }
-                            |> Review.Test.whenFixed
-                                """module A exposing (..)
+                    |> runWithAnyConfiguration
+                        (Review.Test.expectErrors
+                            [ Review.Test.error
+                                { message = "catch-all can be replaced by more specific patterns"
+                                , details =
+                                    [ "The last case in this case-of covers a finite number of specific patterns."
+                                    , "Listing these explicitly might let you recognize cases you've missed now or in the future, so make sure to check each one (after applying the suggested fix)!"
+                                    ]
+                                , under = "listFilled"
+                                }
+                                |> Review.Test.atExactly
+                                    { start = { row = 7, column = 9 }, end = { row = 7, column = 19 } }
+                                |> Review.Test.whenFixed
+                                    """module A exposing (..)
 a list =
     case list of
         [] ->
@@ -386,5 +485,31 @@ a list =
             in
             Just listFilled
 """
-                        ]
+                            ]
+                        )
+            )
         ]
+
+
+runWithAnyConfiguration :
+    (Review.Test.ReviewResult -> Expect.Expectation)
+    -> String
+    -> Expect.Expectation
+runWithAnyConfiguration expect test =
+    Expect.all
+        [ \() ->
+            test
+                |> Review.Test.run
+                    (NoCatchAllForSpecificRemainingPatterns.rule
+                        { onlyReportCatchAllIfEquivalentToSinglePattern = True }
+                    )
+                |> expect
+        , \() ->
+            test
+                |> Review.Test.run
+                    (NoCatchAllForSpecificRemainingPatterns.rule
+                        { onlyReportCatchAllIfEquivalentToSinglePattern = False }
+                    )
+                |> expect
+        ]
+        ()
