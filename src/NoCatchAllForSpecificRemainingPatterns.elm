@@ -97,7 +97,6 @@ rule :
     -> Review.Rule.Rule
 rule config =
     Review.Rule.newProjectRuleSchema "NoCatchAllForSpecificRemainingPatterns" initialContext
-        |> Review.Rule.providesFixesForProjectRule
         |> Review.Rule.withDependenciesProjectVisitor
             (\deps ctx -> ( [], visitDependencies deps ctx ))
         |> Review.Rule.withModuleVisitor
