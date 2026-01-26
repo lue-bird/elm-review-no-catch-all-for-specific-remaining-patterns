@@ -650,9 +650,11 @@ patternCatchesAll context (Elm.Syntax.Node.Node patternRange pattern) =
             parts |> List.all (\part -> part |> patternCatchesAll context)
 
         Elm.Syntax.Pattern.NamedPattern variantName attachmentPatterns ->
-            (attachmentPatterns |> List.all (\attachmentPattern -> attachmentPattern |> patternCatchesAll context))
-                && -- variant is only possibility
-                   (case Review.ModuleNameLookupTable.moduleNameAt context.moduleOriginLookup patternRange of
+            -- && but TCO
+            let
+                isSingleVariant : Bool
+                isSingleVariant =
+                    case Review.ModuleNameLookupTable.moduleNameAt context.moduleOriginLookup patternRange of
                         Nothing ->
                             False
 
@@ -692,7 +694,12 @@ patternCatchesAll context (Elm.Syntax.Node.Node patternRange pattern) =
                                                     [] ->
                                                         False
                                             )
-                   )
+            in
+            if isSingleVariant then
+                attachmentPatterns |> List.all (\attachmentPattern -> attachmentPattern |> patternCatchesAll context)
+
+            else
+                False
 
 
 patternContainsVariables : Elm.Syntax.Pattern.Pattern -> Bool
@@ -729,7 +736,12 @@ patternContainsVariables pattern =
             False
 
         Elm.Syntax.Pattern.UnConsPattern (Elm.Syntax.Node.Node _ headPattern) (Elm.Syntax.Node.Node _ tailPattern) ->
-            patternContainsVariables headPattern || patternContainsVariables tailPattern
+            -- || but TCO
+            if patternContainsVariables headPattern then
+                True
+
+            else
+                patternContainsVariables tailPattern
 
         Elm.Syntax.Pattern.ListPattern elements ->
             elements |> List.any (\(Elm.Syntax.Node.Node _ elementPattern) -> elementPattern |> patternContainsVariables)
