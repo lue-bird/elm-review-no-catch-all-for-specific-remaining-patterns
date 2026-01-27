@@ -83,9 +83,6 @@ import Review.Rule
             Loaded text ->
                 Ui.text text
 
-            FailedToLoad error ->
-                Ui.error error
-
             _ ->
                 Ui.spinner
 
