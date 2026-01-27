@@ -1,3 +1,6 @@
+#### 2.0.1
+  - correct documentation
+
 ## 2.0.0
   - add configuration `onlyReportCatchAllIfEquivalentToSinglePattern`
     to `NoCatchAllForSpecificRemainingPatterns.rule`.
